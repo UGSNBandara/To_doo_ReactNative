@@ -22,3 +22,15 @@ export const loadTasks = async (): Promise<Task[]> => {
         return [];
     }
 };
+
+export const getTaskById = async (taskId : number): Promise<Task | null> => {
+    try {
+        const storedTask = await AsyncStorage.getItem(TASK_STORAGE_KEY);
+        const tasks =  storedTask ? JSON.parse(storedTask) : [];
+        return tasks.find((task: Task) => task.id === taskId) || null;
+
+    } catch (error) {
+        console.error("Error loading task:", error);
+        return null;
+    }
+};

@@ -1,76 +1,167 @@
-import React from "react";
-import {useEffect, useState, useCallback} from "react";
-import { View, Text, Image, StyleSheet } from "react-native";
-import {Task} from "../../Types/Task";
-import {loadTasks } from "../../Utils/TaskStorage";
-import {useFocusEffect} from "@react-navigation/native";
-
+import React, { useEffect, useState, useCallback } from "react";
+import { View, Text, Image, StyleSheet, TextInput, Button, TouchableOpacity, Alert } from "react-native";
+import { Task } from "../../Types/Task";
+import { loadTasks } from "../../Utils/TaskStorage";
+import { useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
+import Toast from "react-native-toast-message";
 
 const Profile = () => {
+    const [editable, setEditable] = useState(false);
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [profileData, setProfileData] = useState({
+        name: "",
+        email: "",
+        role: "",
+        profilePicture: "", // Add profile picture to profileData
+    });
 
-    const [task, setTask] = useState<Task[]>([]);
+    // Load profile data from AsyncStorage
+    useEffect(() => {
+        const loadProfile = async () => {
+            try {
+                const savedProfile = await AsyncStorage.getItem("profile");
+                if (savedProfile) {
+                    setProfileData(JSON.parse(savedProfile));
+                }
+            } catch (error) {
+                console.error("Failed to load profile data:", error);
+            }
+        };
+        loadProfile();
+    }, []);
 
-    const fetchtask = async () => {
-        const LoadedTasks = await loadTasks();
-        setTask(LoadedTasks);
-    }
+    // Save profile data to AsyncStorage
+    const saveProfile = async () => {
+        try {
+            await AsyncStorage.setItem("profile", JSON.stringify(profileData));
+            setEditable(false);
+        } catch (error) {
+            console.error("Failed to save profile data:", error);
+        }
+    };
 
+    const handleChange = (field: string, value: string) => {
+        setProfileData({ ...profileData, [field]: value });
+    };
+
+    const fetchTasks = async () => {
+        try {
+            const loadedTasks = await loadTasks();
+            setTasks(loadedTasks || []); // Ensure tasks is an array
+        } catch (error) {
+            console.error("Failed to load tasks:", error);
+        }
+    };
 
     useFocusEffect(
-        useCallback(() =>{
-            fetchtask();
-            }, [])
+        useCallback(() => {
+            fetchTasks();
+        }, [])
     );
+
+    // Select an image using the image picker
+    const pickImage = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 1,
+            });
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                const selectedImage = result.assets[0].uri;
+                setProfileData((prev) => ({ ...prev, profilePicture: selectedImage }));
+
+                // Save updated profile to AsyncStorage
+                await AsyncStorage.setItem("profile", JSON.stringify({ ...profileData, profilePicture: selectedImage }));
+                Toast.show({ type: "success", text1: "Profile picture successfully uploaded!" });
+            } else {
+                Toast.show({ type: "error", text1: "Image not found!" });
+            }
+        } catch (error) {
+            console.error("Failed to pick an image:", error);
+            Toast.show({ type: "error", text1: "Failed to pick image:!" });
+        }
+    };
+
+
 
     const today = new Date().toISOString().split("T")[0];
 
-    const today_task = task.filter((task: Task) => task.createdAt.split("T")[0] === today);
-
-    const pending_task = task.filter((task: Task) => !task.status);
-
-    const complete_task = task.filter((task: Task) => task.status);
-
-    const today_completed_task = today_task.filter((task: Task) => !task.status);
-
+    const todayTask = tasks.filter((task: Task) => task.createdAt.split("T")[0] === today);
+    const pendingTasks = tasks.filter((task: Task) => !task.status);
+    const completedTasks = tasks.filter((task: Task) => task.status);
+    const todayCompletedTasks = todayTask.filter((task: Task) => task.status);
 
     return (
         <View style={styles.container}>
             {/* Top Section */}
             <View style={styles.topSection}>
-                {/* Left: Profile Picture */}
-                <Image
-                    source={{ uri: "https://via.placeholder.com/150" }} // Replace with profile picture URL
-                    style={styles.profileImage}
-                />
-                {/* Right: User Details */}
+                <TouchableOpacity onPress={pickImage}>
+                    <Image
+                        source={{
+                            uri: profileData.profilePicture || "https://via.placeholder.com/150", // Fallback placeholder
+                        }}
+                        style={styles.profileImage}
+                    />
+                </TouchableOpacity>
                 <View style={styles.detailsContainer}>
-                    <Text style={styles.name}>John Doe</Text>
-                    <Text style={styles.email}>johndoe@example.com</Text>
-                    <Text style={styles.detail}>Role: Developer</Text>
-                    <Text style={styles.detail}>Location: New York, USA</Text>
-                    <Text style={styles.detail}>Member since: Jan 2020</Text>
+                    {editable ? (
+                        <>
+                            <TextInput
+                                style={styles.input}
+                                value={profileData.name}
+                                onChangeText={(text) => handleChange("name", text)}
+                                placeholder="Name"
+                            />
+                            <TextInput
+                                style={styles.input}
+                                value={profileData.email}
+                                onChangeText={(text) => handleChange("email", text)}
+                                placeholder="Email"
+                            />
+                            <TextInput
+                                style={styles.input}
+                                value={profileData.role}
+                                onChangeText={(text) => handleChange("role", text)}
+                                placeholder="Role"
+                            />
+                            <Button title="Save" onPress={saveProfile} />
+                        </>
+                    ) : (
+                        <>
+                            <Text style={styles.name}>{profileData.name}</Text>
+                            <Text style={styles.email}>{profileData.email}</Text>
+                            <Text style={styles.detail}>Role: {profileData.role}</Text>
+                            <Button title="Edit" onPress={() => setEditable(true)} />
+                        </>
+                    )}
                 </View>
             </View>
 
             {/* Bottom Section */}
             <View style={styles.bottomSection}>
                 <View style={styles.statCard}>
-                    <Text style={styles.statValue}> {today_task.length} </Text>
+                    <Text style={styles.statValue}>{todayTask.length}</Text>
                     <Text style={styles.statLabel}>Today's Tasks</Text>
                 </View>
                 <View style={styles.statCard}>
-                    <Text style={styles.statValue}> {today_completed_task.length} </Text>
+                    <Text style={styles.statValue}>{todayCompletedTasks.length}</Text>
                     <Text style={styles.statLabel}>Today Completed</Text>
                 </View>
                 <View style={styles.statCard}>
-                    <Text style={styles.statValue}> {pending_task.length} </Text>
+                    <Text style={styles.statValue}>{pendingTasks.length}</Text>
                     <Text style={styles.statLabel}>Pending Tasks</Text>
                 </View>
                 <View style={styles.statCard}>
-                    <Text style={styles.statValue}> {complete_task.length} </Text>
+                    <Text style={styles.statValue}>{completedTasks.length}</Text>
                     <Text style={styles.statLabel}>All Completed</Text>
                 </View>
             </View>
+            <Toast/>
         </View>
     );
 };
@@ -112,6 +203,14 @@ const styles = StyleSheet.create({
     detail: {
         fontSize: 14,
         color: "#777",
+    },
+    input: {
+        fontSize: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: "#ddd",
+        marginBottom: 10,
+        color: "#333",
+        paddingVertical: 5,
     },
     bottomSection: {
         flex: 1,

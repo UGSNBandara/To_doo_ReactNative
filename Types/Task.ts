@@ -5,4 +5,6 @@ export interface Task {
     status: boolean;
     createdAt: string;
     completedAt: string;
+    duration: number;
+    deadline: string;
 }

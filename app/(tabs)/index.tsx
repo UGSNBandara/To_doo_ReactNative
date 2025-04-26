@@ -1,17 +1,29 @@
-import React, {useCallback, useEffect, useState} from "react";
-import {Text, View, FlatList, Button, StyleSheet, TouchableOpacity, Modal, TextInput} from "react-native";
+import React, {useCallback, useEffect, useState, useRef} from "react";
+import {Text, View, FlatList, StyleSheet, TouchableOpacity, Modal, TextInput, Animated, Easing} from "react-native";
 import { Link } from "expo-router";
 import Toast from "react-native-toast-message";
 import { loadTasks, saveTasks } from "../../Utils/TaskStorage";
 import { Task } from "../../Types/Task";
 import {useFocusEffect} from "@react-navigation/native";
+import { theme } from "../../Utils/theme";
+import { Ionicons } from '@expo/vector-icons';
+import styles from "react-native-webview/lib/WebView.styles";
+import {is} from "@babel/types";
+
 
 export default function Index() {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
+    const [duration, setDuration] = useState(1);
 
+    const today = new Date().toISOString().split("T")[0];
+
+    // Animation values
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(50)).current;
+    const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
     const fetchTasks = async () => {
         const loadedTasks = await loadTasks();
@@ -22,6 +34,44 @@ export default function Index() {
         fetchTasks();
     }, []);
 
+    useEffect(() => {
+        // Start animations when component mounts
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 500,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+            }),
+            Animated.timing(scaleAnim, {
+                toValue: 1,
+                duration: 500,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, []);
+
+    const handleButtonPress = (callback: () => void) => {
+        Animated.sequence([
+            Animated.timing(scaleAnim, {
+                toValue: 0.95,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+            Animated.timing(scaleAnim, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+        ]).start(() => callback());
+    };
+
     const addTask = async () => {
         if (!title.trim() || !description.trim()) {
             Toast.show({type: "error", text1: "Validation Error", text2: "All fields are required"});
@@ -29,9 +79,12 @@ export default function Index() {
         }
 
         if (title.length > 25){
-            Toast.show({type: "error", text1: "Title's can have only maximum 53 characters"});
+            Toast.show({type: "error", text1: "Title's can have only maximum 25 characters"});
             return;
         }
+
+        const day = new Date();
+        day.setTime(day.getTime() + duration * 24 * 60 * 60 * 1000);
 
         const newTask: Task = {
             id: Date.now(),
@@ -40,6 +93,8 @@ export default function Index() {
             status: false,
             createdAt: new Date().toISOString(),
             completedAt: '',
+            duration: duration,
+            deadline: day.toISOString(),
         };
 
         const updatedTasks = [...tasks, newTask];
@@ -60,23 +115,51 @@ export default function Index() {
         Toast.show({ type: "success", text1: "Task completed!" });
     };
 
-    const pendingTasks = tasks.filter((task) => task.status === false);
 
-    const renderTask = ({ item }: { item: Task }) => (
-        <View style={styles.task}>
-            <TouchableOpacity onPress={() => {}}>
-                <Link href={`/Tasks/${item.id}`}>
-                    <Text style={styles.taskTitle}>{item.title}</Text>
-                </Link>
-            </TouchableOpacity>
-            <TouchableOpacity
-                style={styles.completeButton}
-                onPress={() => markTaskAsCompleted(item.id)}
+    const pendingTasks = tasks
+        .filter((task) => task.status === false)
+        .sort((a, b) => {
+            const dateA = new Date(a.deadline || 0).getTime();
+            const dateB = new Date(b.deadline || 0).getTime();
+            return dateA - dateB;
+        });
+
+    const renderTask = ({ item, index }: { item: Task; index: number }) =>{
+
+        const isDeadlineSoon = new Date(item.deadline).getTime() - Date.now() < 24*60*60 * 1000;
+
+        return(
+            <Animated.View
+                style={[
+                    task,
+                    {
+                        opacity: fadeAnim,
+                        transform: [
+                            { translateY: slideAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [0, index * 20]
+                                })}
+                        ]
+                    }
+                ]}
             >
-                <Text style={styles.completeButtonText}>Complete</Text>
-            </TouchableOpacity>
-        </View>
-    );
+
+                <TouchableOpacity onPress={() => {}}>
+
+                    <Link href={`/Tasks/${item.id}`}>
+                        <Text style={isDeadlineSoon ? taskTitle2 : taskTitle1}>{item.title}</Text>
+                    </Link>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={isDeadlineSoon ? completeButton2 : completeButton1}
+                    onPress={() => handleButtonPress(() => markTaskAsCompleted(item.id))}
+                >
+                    <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.surface} />
+                    <Text style={completeButtonText}>Complete</Text>
+                </TouchableOpacity>
+            </Animated.View>
+        );
+    }
 
     useFocusEffect(
         useCallback(() => {
@@ -84,20 +167,47 @@ export default function Index() {
         }, [])
     );
 
-
     return (
-        <View style={styles.container}>
-            <Text style={styles.header}>Pending Tasks</Text>
-            <FlatList
-                data={pendingTasks}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={renderTask}
-                ListEmptyComponent={<Text style={styles.emptyText}>No pending tasks 🎉</Text>}
-                contentContainerStyle={pendingTasks.length === 0 ? styles.emptyContainer : undefined}
-            />
-            <TouchableOpacity style={styles.addTaskButton} onPress={() => setModalVisible(true)}>
-                <Text style={styles.addTaskButtonText}>+ Add Task</Text>
-            </TouchableOpacity>
+        <View style={container}>
+
+            <Animated.View
+                style={[
+                    content,
+                    {
+                        opacity: fadeAnim,
+                        transform: [
+                            { translateY: slideAnim },
+                            { scale: scaleAnim }
+                        ]
+                    }
+                ]}
+            >
+                <Text style={header}>Pending Tasks</Text>
+                <FlatList
+                    data={pendingTasks}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={renderTask}
+                    ListEmptyComponent={
+                        <Animated.View
+                            style={[
+                                emptyContainer,
+                                { opacity: fadeAnim }
+                            ]}
+                        >
+                            <Ionicons name="checkmark-done-circle-outline" size={48} color={theme.colors.text.secondary} />
+                            <Text style={emptyText}>No pending tasks 🎉</Text>
+                        </Animated.View>
+                    }
+                    contentContainerStyle={pendingTasks.length === 0 ? emptyListContainer : undefined}
+                />
+                <TouchableOpacity 
+                    style={addTaskButton}
+                    onPress={() => setModalVisible(true)}
+                >
+                    <Ionicons name="add-circle-outline" size={24} color={theme.colors.surface} />
+                    <Text style={addTaskButtonText}>Add Task</Text>
+                </TouchableOpacity>
+            </Animated.View>
 
             <Modal
                 animationType="slide"
@@ -105,29 +215,67 @@ export default function Index() {
                 visible={modalVisible}
                 onRequestClose={() => setModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Add New Task</Text>
+                <View style={modalOverlay}>
+                    <Animated.View
+                        style={[
+                            modalContent,
+                            {
+                                transform: [
+                                    { translateY: slideAnim }
+                                ]
+                            }
+                        ]}
+                    >
+                        <View style={modalHeader}>
+                            <Text style={modalTitle}>Add New Task</Text>
+                            <TouchableOpacity
+                                style={closeButton}
+                                onPress={() => setModalVisible(false)}
+                            >
+                                <Ionicons name="close" size={24} color={theme.colors.text.secondary} />
+                            </TouchableOpacity>
+                        </View>
 
                         <TextInput
-                            style={styles.input}
+                            style={input}
                             placeholder="Task Title"
+                            placeholderTextColor={theme.colors.text.light}
                             value={title}
                             onChangeText={(text) => setTitle(text)}
                         />
                         <TextInput
-                            style={[styles.input, styles.textArea]}
+                            style={[input, textArea]}
                             placeholder="Task Description"
+                            placeholderTextColor={theme.colors.text.light}
                             value={description}
                             onChangeText={(text) => setDescription(text)}
                             multiline
                         />
 
-                        <View style={styles.modalButtons}>
-                            <Button title="Cancel" color="red" onPress={() => setModalVisible(false)} />
-                            <Button title="Add Task" onPress={addTask} />
+                        <TextInput
+                        style={[input]}
+                        placeholder="Task Duration in Days"
+                        placeholderTextColor={theme.colors.text.light}
+                        value={duration}
+                        onChangeText={(text) => setDuration(Number(text))}
+                        />
+
+                        <View style={modalButtons}>
+                            <TouchableOpacity
+                                style={[modalButton, cancelButton]}
+                                onPress={() => setModalVisible(false)}
+                            >
+                                <Text style={cancelButtonText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[modalButton, addButton]}
+                                onPress={() => handleButtonPress(addTask)}
+                            >
+                                <Ionicons name="add-circle-outline" size={20} color={theme.colors.surface} />
+                                <Text style={addButtonText}>Add Task</Text>
+                            </TouchableOpacity>
                         </View>
-                    </View>
+                    </Animated.View>
                 </View>
             </Modal>
 
@@ -136,105 +284,195 @@ export default function Index() {
     );
 }
 
-const styles = StyleSheet.create({
+const {
+    addButton,
+    addButtonText,
+    addTaskButton,
+    addTaskButtonText,
+    cancelButton,
+    cancelButtonText,
+    closeButton,
+    completeButton1,
+    completeButton2,
+    completeButtonText,
+    container,
+    content,
+    emptyContainer,
+    emptyListContainer,
+    emptyText,
+    header,
+    input,
+    modalButton,
+    modalButtons,
+    modalContent,
+    modalHeader,
+    modalOverlay,
+    modalTitle,
+    task,
+    taskTitle1,
+    taskTitle2,
+    textArea
+} = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
-        backgroundColor: "#f9f9f9",
+        backgroundColor: theme.colors.background,
+    },
+    content: {
+        flex: 1,
+        padding: theme.spacing.lg,
     },
     header: {
-        fontSize: 26,
-        fontWeight: "bold",
-        marginBottom: 20,
-        color: "#333",
+        ...theme.typography.h1,
+        marginBottom: theme.spacing.xl,
+        color: theme.colors.text.primary,
         textAlign: "center",
     },
     task: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: 15,
-        backgroundColor: "#ffffff",
-        borderRadius: 8,
-        marginBottom: 10,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        padding: theme.spacing.md,
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.borderRadius.lg,
+        marginBottom: theme.spacing.md,
+        ...theme.shadows.sm,
         borderWidth: 1,
-        borderColor: "#007BFF",
+        borderColor: theme.colors.primary,
     },
-    taskTitle: {
-        fontSize: 18,
-        color: "#333",
+    taskTitle1: {
+        ...theme.typography.body,
+        color: theme.colors.text.primary,
         fontWeight: "600",
     },
-    completeButton: {
-        backgroundColor: "#007BFF",
-        paddingVertical: 6,
-        paddingHorizontal: 15,
-        borderRadius: 5,
+    taskTitle2: {
+        ...theme.typography.body,
+        color: theme.colors.text.end,
+        fontWeight: "600",
+    },
+    completeButton1: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.primary,
+        paddingVertical: theme.spacing.xs,
+        paddingHorizontal: theme.spacing.md,
+        borderRadius: theme.borderRadius.md,
+    },
+    completeButton2: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.end,
+        paddingVertical: theme.spacing.xs,
+        paddingHorizontal: theme.spacing.md,
+        borderRadius: theme.borderRadius.md,
     },
     completeButtonText: {
-        color: "#fff",
-        fontWeight: "bold",
+        color: theme.colors.surface,
+        marginLeft: theme.spacing.xs,
+        fontWeight: "600",
     },
     addTaskButton: {
-        backgroundColor: "#007BFF",
-        paddingVertical: 12,
-        borderRadius: 10,
-        alignItems: "center",
-        marginTop: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: theme.colors.primary,
+        paddingVertical: theme.spacing.md,
+        borderRadius: theme.borderRadius.lg,
+        marginTop: theme.spacing.lg,
+        ...theme.shadows.md,
     },
     addTaskButtonText: {
-        color: "#fff",
-        fontSize: 18,
-        fontWeight: "bold",
-    },
-    emptyText: {
-        fontSize: 16,
-        color: "#777",
-        textAlign: "center",
+        color: theme.colors.surface,
+        marginLeft: theme.spacing.sm,
+        ...theme.typography.body,
+        fontWeight: "600",
     },
     emptyContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: theme.spacing.xl,
+    },
+    emptyListContainer: {
         flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
+        justifyContent: 'center',
+    },
+    emptyText: {
+        ...theme.typography.body,
+        color: theme.colors.text.secondary,
+        textAlign: "center",
+        marginTop: theme.spacing.md,
     },
     modalOverlay: {
         flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "rgba(0,0,0,0.5)",
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
     },
     modalContent: {
-        width: "80%",
-        backgroundColor: "white",
-        borderRadius: 10,
-        padding: 20,
-        elevation: 5,
+        width: '90%',
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.borderRadius.xl,
+        padding: theme.spacing.lg,
+        ...theme.shadows.lg,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: theme.spacing.lg,
     },
     modalTitle: {
-        fontSize: 20,
-        fontWeight: "bold",
-        marginBottom: 15,
-        textAlign: "center",
+        ...theme.typography.h2,
+        color: theme.colors.text.primary,
+    },
+    closeButton: {
+        padding: theme.spacing.xs,
     },
     input: {
+        backgroundColor: theme.colors.background,
         borderWidth: 1,
-        borderColor: "#ccc",
-        borderRadius: 5,
-        padding: 10,
-        marginBottom: 10,
-        fontSize: 16,
+        borderColor: theme.colors.border,
+        borderRadius: theme.borderRadius.md,
+        padding: theme.spacing.md,
+        marginBottom: theme.spacing.md,
+        ...theme.typography.body,
+        color: theme.colors.text.primary,
     },
     textArea: {
-        height: 60,
+        height: 120,
+        textAlignVertical: 'top',
     },
     modalButtons: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        marginTop: 10,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: theme.spacing.lg,
     },
+    modalButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: theme.spacing.md,
+        borderRadius: theme.borderRadius.lg,
+        marginHorizontal: theme.spacing.xs,
+    },
+    cancelButton: {
+        backgroundColor: theme.colors.background,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    addButton: {
+        backgroundColor: theme.colors.primary,
+    },
+    cancelButtonText: {
+        ...theme.typography.body,
+        color: theme.colors.text.secondary,
+        fontWeight: '600',
+    },
+    addButtonText: {
+        ...theme.typography.body,
+        color: theme.colors.surface,
+        marginLeft: theme.spacing.xs,
+        fontWeight: '600',
+    },
+
 });

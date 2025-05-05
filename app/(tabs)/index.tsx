@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState, useRef} from "react";
-import {Text, View, FlatList, StyleSheet, TouchableOpacity, Modal, TextInput, Animated, Easing} from "react-native";
+import {Text, View, FlatList, StyleSheet, TouchableOpacity, Modal, TextInput, Animated, Easing, ViewStyle, TextStyle} from "react-native";
 import { Link } from "expo-router";
 import Toast from "react-native-toast-message";
 import { loadTasks, saveTasks } from "../../Utils/TaskStorage";
@@ -7,8 +7,6 @@ import { Task } from "../../Types/Task";
 import {useFocusEffect} from "@react-navigation/native";
 import { theme } from "../../Utils/theme";
 import { Ionicons } from '@expo/vector-icons';
-import styles from "react-native-webview/lib/WebView.styles";
-import {is} from "@babel/types";
 
 
 export default function Index() {
@@ -253,11 +251,11 @@ export default function Index() {
                         />
 
                         <TextInput
-                        style={[input]}
-                        placeholder="Task Duration in Days"
-                        placeholderTextColor={theme.colors.text.light}
-                        value={duration}
-                        onChangeText={(text) => setDuration(Number(text))}
+                            style={[input]}
+                            placeholder="Task Duration in Days"
+                            placeholderTextColor={theme.colors.text.light}
+                            value={duration.toString()}
+                            onChangeText={(text) => setDuration(Number(text))}
                         />
 
                         <View style={modalButtons}>
@@ -316,17 +314,17 @@ const {
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
-    },
+    } as ViewStyle,
     content: {
         flex: 1,
         padding: theme.spacing.lg,
-    },
+    } as ViewStyle,
     header: {
         ...theme.typography.h1,
         marginBottom: theme.spacing.xl,
         color: theme.colors.text.primary,
         textAlign: "center",
-    },
+    } as TextStyle,
     task: {
         flexDirection: "row",
         alignItems: "center",
@@ -338,17 +336,17 @@ const {
         ...theme.shadows.sm,
         borderWidth: 1,
         borderColor: theme.colors.primary,
-    },
+    } as ViewStyle,
     taskTitle1: {
         ...theme.typography.body,
         color: theme.colors.text.primary,
         fontWeight: "600",
-    },
+    } as TextStyle,
     taskTitle2: {
         ...theme.typography.body,
         color: theme.colors.text.end,
         fontWeight: "600",
-    },
+    } as TextStyle,
     completeButton1: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -356,7 +354,7 @@ const {
         paddingVertical: theme.spacing.xs,
         paddingHorizontal: theme.spacing.md,
         borderRadius: theme.borderRadius.md,
-    },
+    } as ViewStyle,
     completeButton2: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -364,12 +362,12 @@ const {
         paddingVertical: theme.spacing.xs,
         paddingHorizontal: theme.spacing.md,
         borderRadius: theme.borderRadius.md,
-    },
+    } as ViewStyle,
     completeButtonText: {
         color: theme.colors.surface,
         marginLeft: theme.spacing.xs,
         fontWeight: "600",
-    },
+    } as TextStyle,
     addTaskButton: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -379,54 +377,54 @@ const {
         borderRadius: theme.borderRadius.lg,
         marginTop: theme.spacing.lg,
         ...theme.shadows.md,
-    },
+    } as ViewStyle,
     addTaskButtonText: {
         color: theme.colors.surface,
         marginLeft: theme.spacing.sm,
         ...theme.typography.body,
         fontWeight: "600",
-    },
+    } as TextStyle,
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',
         padding: theme.spacing.xl,
-    },
+    } as ViewStyle,
     emptyListContainer: {
         flex: 1,
         justifyContent: 'center',
-    },
+    } as ViewStyle,
     emptyText: {
         ...theme.typography.body,
         color: theme.colors.text.secondary,
         textAlign: "center",
         marginTop: theme.spacing.md,
-    },
+    } as TextStyle,
     modalOverlay: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: 'rgba(0,0,0,0.5)',
-    },
+    } as ViewStyle,
     modalContent: {
         width: '90%',
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.xl,
         padding: theme.spacing.lg,
-        ...theme.shadows.lg,
-    },
+        ...theme.shadows.md,
+    } as ViewStyle,
     modalHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: theme.spacing.lg,
-    },
+    } as ViewStyle,
     modalTitle: {
         ...theme.typography.h2,
         color: theme.colors.text.primary,
-    },
+    } as TextStyle,
     closeButton: {
         padding: theme.spacing.xs,
-    },
+    } as ViewStyle,
     input: {
         backgroundColor: theme.colors.background,
         borderWidth: 1,
@@ -436,16 +434,16 @@ const {
         marginBottom: theme.spacing.md,
         ...theme.typography.body,
         color: theme.colors.text.primary,
-    },
+    } as TextStyle,
     textArea: {
         height: 120,
         textAlignVertical: 'top',
-    },
+    } as TextStyle,
     modalButtons: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         marginTop: theme.spacing.lg,
-    },
+    } as ViewStyle,
     modalButton: {
         flex: 1,
         flexDirection: 'row',
@@ -454,25 +452,24 @@ const {
         padding: theme.spacing.md,
         borderRadius: theme.borderRadius.lg,
         marginHorizontal: theme.spacing.xs,
-    },
+    } as ViewStyle,
     cancelButton: {
         backgroundColor: theme.colors.background,
         borderWidth: 1,
         borderColor: theme.colors.border,
-    },
+    } as ViewStyle,
     addButton: {
         backgroundColor: theme.colors.primary,
-    },
+    } as ViewStyle,
     cancelButtonText: {
         ...theme.typography.body,
         color: theme.colors.text.secondary,
         fontWeight: '600',
-    },
+    } as TextStyle,
     addButtonText: {
         ...theme.typography.body,
         color: theme.colors.surface,
         marginLeft: theme.spacing.xs,
         fontWeight: '600',
-    },
-
+    } as TextStyle,
 });
